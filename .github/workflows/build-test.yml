@@ -4,7 +4,7 @@ on:
   push:
     # push to main branch will triger build-test-publish-deploy
     branches-ignore:
-	  - main
+      - main
   #all pull request
   pull_request:
 
@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: windows-latest #use remote Runner
 
-	steps:
+    steps:
     - name: Checkout Repository
       uses: actions/checkout@v3
 
