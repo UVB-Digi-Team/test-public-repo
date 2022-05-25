@@ -1,8 +1,11 @@
-name: build-test-publish-deploy
+## triggered when a tag was added to main branch
+## deploy to production
+name: build-test-publish-deploy_tag
 
 on:
   push:
-    branches: [ main ]
+    tags:
+      - 'v.**'
 
 jobs:
   build:
@@ -46,7 +49,7 @@ jobs:
         name: .net-app
 
     - name: Take application offline
-      run: New-Item -Type File -Name app_offline.htm -Path E:\work\test-public-repo_deploy -Force
+      run: New-Item -Type File -Name app_offline.htm -Path E:\work\test-public-repo_prod-deploy -Force
 
     - name: Sleep for 5 seconds #give some time for iis to gracefully shutdown
       run: Start-Sleep -s 5
@@ -54,7 +57,7 @@ jobs:
 
     - name: Deploy to IIS (first)
       id: deploy-first-attempt
-      run: Copy-Item ./* E:\work\test-public-repo_deploy -Recurse -Force #IIS指向的位置
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
       continue-on-error: true
 
     ## fallback workflow if first deploy failed
@@ -66,7 +69,7 @@ jobs:
     - name: Retry Deploy again on failure (second)
       id: deploy-second-attempt
       if: steps.deploy-first-attempt.outcome == 'failure'
-      run: Copy-Item ./* E:\work\test-public-repo_deploy -Recurse -Force #IIS指向的位置
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
       continue-on-error: true
 
     - name: Sleep for 5 seconds
@@ -77,9 +80,9 @@ jobs:
     - name: Retry Deploy again on failure (third)
       id: deploy-third-attempt
       if: steps.deploy-second-attempt.outcome == 'failure'
-      run: Copy-Item ./* E:\work\test-public-repo_deploy -Recurse -Force #IIS指向的位置
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
     ## fallback end (如果第三次部署都失敗 -> 會顯示失敗&傳email通知)
 
     - name: Bring the app back online
       if: always()
-      run: Remove-Item E:\work\test-public-repo_deploy\app_offline.htm
+      run: Remove-Item E:\work\test-public-repo_prod-deploy\app_offline.htm

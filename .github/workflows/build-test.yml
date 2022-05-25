@@ -1,8 +1,10 @@
+## triggered when committed to a branch (except main, cannot committed to main branch directly)
+## triggered when created a pull request
 name: build-test
 
 on:
   push:
-    # push to main branch will triger build-test-publish-deploy
+    # PR merge to main branch will triger build-test-publish-deploy_merge
     branches-ignore:
       - main
   #all pull request
