@@ -1,5 +1,5 @@
 ## triggered when a release was deleted
-## deploy the previous tag to production
+## deploy the previous release to production
 name: rollback-deploy_release
 
 on:
