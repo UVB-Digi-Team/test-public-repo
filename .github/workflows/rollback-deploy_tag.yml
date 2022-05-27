@@ -1,0 +1,99 @@
+## triggered when a release was deleted
+## deploy the previous tag to production
+name: rollback-deploy_tag
+
+on:
+  release:
+    types:
+      - deleted
+
+jobs:
+  build:
+    runs-on: windows-latest #use remote Runner -> build, test, publish
+
+    steps:
+    - name: Fetch Previous Release
+      id: previous-release
+      uses: thebritican/fetch-latest-release@v1
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ steps.previous-release.outputs.tag_name }}
+
+    - name: echo
+      run: echo ${{ steps.previous-release.outputs.tag_name }}
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v2
+      with:
+        dotnet-version: '3.1.x'
+
+    - name: Restore Dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --no-restore
+
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
+
+    - name: Publish
+      run: dotnet publish test-public-repo/test-public-repo.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: .net-app
+        path: ${{env.DOTNET_ROOT}}/myapp
+
+  deploy:
+    needs: build
+    runs-on: self-hosted #use self-hosted Runner -> deploy to iis
+
+    steps:
+    - name: Download a Build Artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: .net-app
+
+    - name: Take application offline
+      run: New-Item -Type File -Name app_offline.htm -Path E:\work\test-public-repo_prod-deploy -Force
+
+    - name: Sleep for 5 seconds #give some time for iis to gracefully shutdown
+      run: Start-Sleep -s 5
+      shell: powershell
+
+    - name: Deploy to IIS (first)
+      id: deploy-first-attempt
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
+      continue-on-error: true
+
+    ## fallback workflow if first deploy failed
+    - name: Sleep for 5 seconds
+      if: steps.deploy-first-attempt.outcome == 'failure'
+      run: Start-Sleep -s 5
+      shell: powershell
+
+    - name: Retry Deploy again on failure (second)
+      id: deploy-second-attempt
+      if: steps.deploy-first-attempt.outcome == 'failure'
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
+      continue-on-error: true
+
+    - name: Sleep for 5 seconds
+      if: steps.deploy-second-attempt.outcome == 'failure'
+      run: Start-Sleep -s 5
+      shell: powershell
+
+    - name: Retry Deploy again on failure (third)
+      id: deploy-third-attempt
+      if: steps.deploy-second-attempt.outcome == 'failure'
+      run: Copy-Item ./* E:\work\test-public-repo_prod-deploy -Recurse -Force #IIS指向的位置
+    ## fallback end (如果第三次部署都失敗 -> 會顯示失敗&傳email通知)
+
+    - name: Bring the app back online
+      if: always()
+      run: Remove-Item E:\work\test-public-repo_prod-deploy\app_offline.htm
